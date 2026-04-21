@@ -4,7 +4,7 @@ import json
 import sqlite3
 
 # ================= CONFIG =================
-TOKEN = "SENING_BOT_TOKEN"
+TOKEN = "8786803798:AAF8LAeHpccjJozrPfeSkA81a5vy84KuvnU"
 URL = f"https://api.telegram.org/bot{TOKEN}"
 
 CHANNEL = "nuriddinovic_m"
