@@ -5,12 +5,12 @@ import sqlite3
 from datetime import datetime
 
 # ================= CONFIG =================
-TOKEN = "8786803798:AAF8LAeHpccjJozrPfeSkA81a5vy84KuvnU"
+TOKEN = "SENING_BOT_TOKEN"
 
 CHANNEL_NAME = "nuriddinovic_m"
 CHANNEL_LINK = "https://t.me/nuriddinovic_m"
 
-DAILY_TASK = "📚 Bugungi challenge: 30 min English + 10 vocab"
+DAILY_TASK = "📚 30 min English reading + 10 vocab"
 
 URL = f"https://api.telegram.org/bot{TOKEN}"
 
@@ -28,7 +28,6 @@ CREATE TABLE IF NOT EXISTS users (
     last_day TEXT
 )
 """)
-
 conn.commit()
 
 # ================= HELPERS =================
@@ -46,7 +45,7 @@ def get_name(msg):
     user = msg["from"]
     return "@" + user.get("username") if user.get("username") else user.get("first_name", "User")
 
-# ================= DB FUNCTIONS =================
+# ================= USER =================
 def get_user(user_id, name):
     cur.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
     data = cur.fetchone()
@@ -67,8 +66,12 @@ def get_user(user_id, name):
         "last_day": data[5]
     }
 
-def update_score(user_id, points):
+def add_score(user_id, points):
     cur.execute("UPDATE users SET score = score + ? WHERE user_id=?", (points, user_id))
+    conn.commit()
+
+def update_task(user_id, task):
+    cur.execute("UPDATE users SET task=? WHERE user_id=?", (task, user_id))
     conn.commit()
 
 def update_streak(user_id):
@@ -76,8 +79,11 @@ def update_streak(user_id):
 
     if u["last_day"] != today():
         new_streak = u["streak"] + 1 if u["last_day"] else 1
-        cur.execute("UPDATE users SET streak=?, last_day=? WHERE user_id=?",
-                    (new_streak, today(), user_id))
+
+        cur.execute("""
+            UPDATE users SET streak=?, last_day=?
+            WHERE user_id=?
+        """, (new_streak, today(), user_id))
         conn.commit()
 
 # ================= KEYBOARD =================
@@ -97,48 +103,43 @@ def done_btn():
         ]
     }
 
-# ================= BOT =================
+# ================= BOT LOOP =================
 last_update = 0
+
 print("BOT STARTED...")
 
 while True:
-    res = requests.get(URL + "/getUpdates", params={"offset": last_update + 1}).json()
+    try:
+        res = requests.get(URL + "/getUpdates", params={"offset": last_update + 1}).json()
 
-    for upd in res.get("result", []):
-        last_update = upd["update_id"]
+        for upd in res.get("result", []):
+            last_update = upd["update_id"]
 
-        # ========== MESSAGE ==========
-        if "message" in upd:
-            msg = upd["message"]
-            chat_id = msg["chat"]["id"]
-            text = msg.get("text", "")
-            name = get_name(msg)
+            # ========== MESSAGE ==========
+            if "message" in upd:
+                msg = upd["message"]
+                chat_id = msg["chat"]["id"]
+                text = msg.get("text", "")
+                name = get_name(msg)
 
-            user = get_user(chat_id, name)
+                user = get_user(chat_id, name)
 
-            # START
-            if text == "🚀 Start":
-                send(chat_id,
-                    f"🚀 Xush kelibsiz {user['name']}!\n\n"
-                    f"📢 Kanal: @{CHANNEL_NAME}\n{CHANNEL_LINK}\n\n"
-                    f"📅 Bugungi task:\n{DAILY_TASK}",
-                    keyboard()
-                )
+                # START
+                if text == "🚀 Start":
+                    send(chat_id,
+                        f"🚀 Welcome {user['name']}!\n\n"
+                        f"📢 @{CHANNEL_NAME}\n{CHANNEL_LINK}\n\n"
+                        f"📅 Today task:\n{DAILY_TASK}",
+                        keyboard()
+                    )
 
-            # CHALLENGE
-            elif text == "📝 Challenge":
-                send(chat_id, "📝 Vazifani yozing:")
+                # CHALLENGE
+                elif text == "📝 Challenge":
+                    send(chat_id, "📝 Write your task:")
 
-            # SAVE TASK
-            elif text not in ["🚀 Start", "📝 Challenge", "🔥 Done", "🏆 Leaderboard"]:
-                cur.execute("UPDATE users SET task=? WHERE user_id=?", (text, chat_id))
-                conn.commit()
-
-                send(chat_id,
-                    f"📋 Task saqlandi:\n{text}\n\nTugatdingizmi?",
-                    done_btn()
-                )
-
-            # DONE
-            elif text == "🔥 Done":
-                update_score(chat_id, 10)
+                # SAVE TASK
+                elif text not in ["🚀 Start", "📝 Challenge", "🔥 Done", "🏆 Leaderboard"]:
+                    update_task(chat_id, text)
+                    send(chat_id,
+                        f"📋 Saved:\n{text}\n\nDone?",
+                        done_btn()
