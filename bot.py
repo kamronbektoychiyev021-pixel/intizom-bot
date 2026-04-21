@@ -6,12 +6,13 @@ from datetime import datetime
 
 # ================= CONFIG =================
 TOKEN = "8786803798:AAF8LAeHpccjJozrPfeSkA81a5vy84KuvnU"
-URL = f"https://api.telegram.org/bot{TOKEN}"
 
-CHANNEL_NAME = "@nuriddinovic_m"
+CHANNEL_NAME = "nuriddinovic_m"
 CHANNEL_LINK = "https://t.me/nuriddinovic_m"
 
-DAILY_TASK = "📚 Bugungi challenge: 30 min English reading + 10 vocab"
+DAILY_TASK = "📚 Bugungi challenge: 30 min English + 10 vocab"
+
+URL = f"https://api.telegram.org/bot{TOKEN}"
 
 # ================= DATABASE =================
 conn = sqlite3.connect("bot.db", check_same_thread=False)
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_day TEXT
 )
 """)
+
 conn.commit()
 
 # ================= HELPERS =================
@@ -34,10 +36,7 @@ def today():
     return datetime.now().strftime("%Y-%m-%d")
 
 def send(chat_id, text, reply_markup=None):
-    data = {
-        "chat_id": chat_id,
-        "text": text
-    }
+    data = {"chat_id": chat_id, "text": text}
     if reply_markup:
         data["reply_markup"] = json.dumps(reply_markup)
 
@@ -47,8 +46,8 @@ def get_name(msg):
     user = msg["from"]
     return "@" + user.get("username") if user.get("username") else user.get("first_name", "User")
 
-# ================= USER =================
-def get_user(user_id, name=None):
+# ================= DB FUNCTIONS =================
+def get_user(user_id, name):
     cur.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
     data = cur.fetchone()
 
@@ -72,21 +71,13 @@ def update_score(user_id, points):
     cur.execute("UPDATE users SET score = score + ? WHERE user_id=?", (points, user_id))
     conn.commit()
 
-def update_task(user_id, task):
-    cur.execute("UPDATE users SET task=? WHERE user_id=?", (task, user_id))
-    conn.commit()
-
 def update_streak(user_id):
-    u = get_user(user_id)
+    u = get_user(user_id, "")
 
     if u["last_day"] != today():
         new_streak = u["streak"] + 1 if u["last_day"] else 1
-
-        cur.execute("""
-            UPDATE users SET streak=?, last_day=?
-            WHERE user_id=?
-        """, (new_streak, today(), user_id))
-
+        cur.execute("UPDATE users SET streak=?, last_day=? WHERE user_id=?",
+                    (new_streak, today(), user_id))
         conn.commit()
 
 # ================= KEYBOARD =================
@@ -106,14 +97,12 @@ def done_btn():
         ]
     }
 
-# ================= BOT LOOP =================
+# ================= BOT =================
 last_update = 0
 print("BOT STARTED...")
 
 while True:
-    res = requests.get(URL + "/getUpdates", params={
-        "offset": last_update + 1
-    }).json()
+    res = requests.get(URL + "/getUpdates", params={"offset": last_update + 1}).json()
 
     for upd in res.get("result", []):
         last_update = upd["update_id"]
@@ -131,19 +120,25 @@ while True:
             if text == "🚀 Start":
                 send(chat_id,
                     f"🚀 Xush kelibsiz {user['name']}!\n\n"
-                    f"📢 {@nuriddinovic-m}\n{https://t.me/nuriddinovic_m}\n\n"
+                    f"📢 Kanal: @{CHANNEL_NAME}\n{CHANNEL_LINK}\n\n"
                     f"📅 Bugungi task:\n{DAILY_TASK}",
                     keyboard()
                 )
 
             # CHALLENGE
             elif text == "📝 Challenge":
-                send(chat_id, "📝 Vazifani yozib yuboring:")
+                send(chat_id, "📝 Vazifani yozing:")
 
             # SAVE TASK
             elif text not in ["🚀 Start", "📝 Challenge", "🔥 Done", "🏆 Leaderboard"]:
-                update_task(chat_id, text)
+                cur.execute("UPDATE users SET task=? WHERE user_id=?", (text, chat_id))
+                conn.commit()
+
                 send(chat_id,
                     f"📋 Task saqlandi:\n{text}\n\nTugatdingizmi?",
                     done_btn()
                 )
+
+            # DONE
+            elif text == "🔥 Done":
+                update_score(chat_id, 10)
