@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime
 
 # ================= CONFIG =================
-TOKEN = "SENING_BOT_TOKEN"
+TOKEN = "8786803798:AAF8LAeHpccjJozrPfeSkA81a5vy84KuvnU"
 
 CHANNEL_NAME = "nuriddinovic_m"
 CHANNEL_LINK = "https://t.me/nuriddinovic_m"
